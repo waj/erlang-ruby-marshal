@@ -18,9 +18,22 @@ decode_file(Filename) ->
 decode(<<Major:8, Minor:8, D/binary>>) when Major =:= ?MARSHAL_MAJOR, Minor =:= ?MARSHAL_MINOR ->
     decode(D);
 decode(D) ->
-    decode(D, []).
+    Acceptor = self(),
+    spawn(fun() -> decode(D, Acceptor) end),
+    receive
+        {ok, Decoded} -> Decoded;
+        error         -> malformed
+    end.
 
 %% decode/2
+
+decode(D, Pid) when is_pid(Pid) ->
+    try
+        Decoded = decode(D, []),
+        Pid ! {ok, Decoded}
+    catch error:_ ->
+        Pid ! error
+    end;
 
 decode(<<>>, Acc) ->
     lists:reverse(Acc);
