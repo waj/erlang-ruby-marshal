@@ -61,6 +61,7 @@ decode_element(?TYPE_ARRAY, <<S:8, D/binary>>) -> decode_array(S, D);
 decode_element(?TYPE_HASH, <<S:8, D/binary>>) -> decode_hash(S, D);
 
 decode_element(?TYPE_SYMBOL, <<S:8, D/binary>>) -> decode_symbol(S, D);
+decode_element(?TYPE_SYMLINK, <<N:8, D/binary>>) -> decode_symlink(N, D);
 decode_element(?TYPE_UCLASS, <<D/binary>>) -> decode_uclass(D);
 decode_element(?TYPE_IVAR, <<T:8, D/binary>>) -> decode_element_with_ivars(T, D);
 
@@ -195,8 +196,13 @@ decode_hash_element(<<T:8, D/binary>>) ->
 
 decode_symbol(S, D) ->
     {Size, D2} = unpack(S, D),
-    {Symbol, D3} = read_bytes(D2, Size),
-    {list_to_atom(Symbol), D3}.
+    {_Symbol, D3} = read_bytes(D2, Size),
+    Symbol = list_to_atom(_Symbol),
+    put_symbol(Symbol),
+    {Symbol, D3}.
+
+decode_symlink(N, D) ->
+    {get_symbol(N), D}.
 
 decode_uclass(<<T:8, D/binary>>) ->
     {_ClassName, D2} = decode_element(T, D),
@@ -272,6 +278,15 @@ nbits_unsigned(XS) -> % Necessary bit size for an integer value.
         0 -> Min;
         _ -> Min - (Min rem 16) + 16
     end.
+
+put_symbol(Sym) ->
+    Num = length(get()),
+    case Num of
+        0 -> put(0, Sym);
+        _ -> put(Num + 5, Sym)
+    end.
+
+get_symbol(Num) -> get(Num).
 
 %% Tests
 
