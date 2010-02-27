@@ -13,7 +13,7 @@ decode_file(Filename) ->
         Any -> Any
     end.
 
-%% parse/1
+%% decode/1
 
 decode(<<Major:8, Minor:8, D/binary>>) when Major =:= ?MARSHAL_MAJOR, Minor =:= ?MARSHAL_MINOR ->
     decode(D);
@@ -24,6 +24,12 @@ decode(D) ->
         {ok, Decoded} -> Decoded;
         error         -> malformed
     end.
+
+%% encode/1
+
+encode(Term) ->
+    Binary = encode_element(Term),
+    <<?MARSHAL_MAJOR:8, ?MARSHAL_MINOR:8, Binary/binary>>.
 
 %% decode/2
 
@@ -40,10 +46,6 @@ decode(<<>>, Acc) ->
 decode(<<T:8, D/binary>>, Acc) ->
     {Element, D2} = decode_element(T, D),
     decode(D2, [Element | Acc]).
-
-encode(Term) ->
-    Binary = encode_element(Term),
-    <<?MARSHAL_MAJOR:8, ?MARSHAL_MINOR:8, Binary/binary>>.
 
 %% decode_element/2
 
