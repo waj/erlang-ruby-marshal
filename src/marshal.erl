@@ -49,6 +49,7 @@ decode_element(?TYPE_HASH, <<S:8, D/binary>>) -> decode_hash(S, D);
 
 decode_element(?TYPE_SYMBOL, <<S:8, D/binary>>) -> decode_symbol(S, D);
 decode_element(?TYPE_UCLASS, <<D/binary>>) -> decode_uclass(D);
+decode_element(?TYPE_IVAR, <<T:8, D/binary>>) -> decode_element_with_ivars(T, D);
 
 decode_element(_T, <<T:8, D/binary>>) -> decode_element(T, D).
 
@@ -186,9 +187,32 @@ decode_symbol(S, D) ->
 
 decode_uclass(<<T:8, D/binary>>) ->
     {_ClassName, D2} = decode_element(T, D),
-    <<T2:8, _:8, S:8, D3/binary>> = D2,
-    D4 = list_to_binary([S] ++ binary_to_list(D3)),
-    decode_element(T2, D4).
+    <<T2:8, D3/binary>> = D2,
+    decode_element(T2, D3).
+
+%% Objects with instance variables
+
+decode_element_with_ivars(T, D) ->
+    {Element, DI} = decode_element(T, D),
+    {Ivars,   D2} = decode_ivars(DI),
+    {lists:append(Element, Ivars), D2}.
+
+decode_ivars(<<S:8, D/binary>>) ->
+    {Count, D2} = unpack(S, D),
+    decode_ivars(D2, Count, []).
+
+decode_ivars(D, 0, Acc) ->
+    {lists:reverse(Acc), D};
+decode_ivars(D, Count, Acc) ->
+    {Ivar, D2} = decode_ivar(D),
+    decode_ivars(D2, Count - 1, [Ivar | Acc]).
+
+decode_ivar(D) ->
+    <<Tn:8, Dn/binary>> = D,
+    {Name,  D2} = decode_element(Tn, Dn),
+    <<Tv:8, Dv/binary>> = D2,
+    {Value, D3} = decode_element(Tv, Dv),
+    {{Name, Value}, D3}.
 
 %% Helpers
 
