@@ -44,3 +44,29 @@ Erlang:
       {user_id,1024}]]
 
 
+    % Extract User ID from Rails' session cookie
+    %
+    % generate_digest is in rcookie.erl
+    % unquote is in misultin (http://github.com/ostinelli/misultin)
+    % Sorry for the mess ;-)
+    %
+    extract_uid(CookieString) ->
+      Cookies = mochiweb_cookies:parse_cookie(CookieString),
+      case proplists:get_value(?SESSION_NAME, Cookies) of
+        undefined -> false;
+
+        SignedSession ->
+          [Session, Signature] = string:tokens(unquote(SignedSession), "--"),
+
+          case generate_digest(Session) == Signature of
+            true ->
+              [Data] = marshal:decode(base64:decode(Session)),
+              Uid = proplists:get_value(user_id, Data),
+              case Uid of
+                undefined -> false;
+                _         -> Uid
+              end;
+
+            _ -> false
+          end
+      end.
