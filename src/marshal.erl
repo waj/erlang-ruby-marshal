@@ -220,7 +220,7 @@ decode_uclass(<<T:8, D/binary>>) ->
 decode_element_with_ivars(T, D) ->
     {Element, DI} = decode_element(T, D),
     {Ivars,   D2} = decode_ivars(DI),
-    {lists:append(Element, Ivars), D2}.
+    {[Element, Ivars], D2}.
 
 decode_ivars(<<S:8, D/binary>>) ->
     {Count, D2} = unpack(S, D),
