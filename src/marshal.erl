@@ -66,6 +66,7 @@ decode_element(?TYPE_SYMBOL, <<S:8, D/binary>>) -> decode_symbol(S, D);
 decode_element(?TYPE_SYMLINK, <<N:8, D/binary>>) -> decode_symlink(N, D);
 decode_element(?TYPE_UCLASS, <<D/binary>>) -> decode_uclass(D);
 decode_element(?TYPE_IVAR, <<T:8, D/binary>>) -> decode_element_with_ivars(T, D);
+decode_element(?TYPE_LINK, <<N:8, D/binary>>) -> decode_link(N, D);
 
 decode_element(_T, <<T:8, D/binary>>) -> decode_element(T, D).
 
@@ -98,12 +99,13 @@ decode_float(S, D) ->
 
 decode_string(S, D) ->
     {Size, D2} = unpack(S, D),
-    read_bytes(D2, Size).
+    {String, D3} = read_bytes(D2, Size),
+    {put_value(String), D3}.
 
 decode_regexp(S, D) ->
     {RegExp, D2} = decode_string(S, D),
     <<_:8, D3/binary>> = D2,
-    {{regexp, RegExp}, D3}.
+    {{regexp, put_value(RegExp)}, D3}.
 
 %% Base types - encode
 
@@ -200,11 +202,13 @@ decode_symbol(S, D) ->
     {Size, D2} = unpack(S, D),
     {_Symbol, D3} = read_bytes(D2, Size),
     Symbol = list_to_atom(_Symbol),
-    put_symbol(Symbol),
-    {Symbol, D3}.
+    {put_symbol(Symbol), D3}.
 
 decode_symlink(N, D) ->
     {get_symbol(N), D}.
+
+decode_link(N, D) ->
+    {get_value(N), D}.
 
 decode_uclass(<<T:8, D/binary>>) ->
     {_ClassName, D2} = decode_element(T, D),
@@ -281,14 +285,63 @@ nbits_unsigned(XS) -> % Necessary bit size for an integer value.
         _ -> Min - (Min rem 16) + 16
     end.
 
-put_symbol(Sym) ->
-    Num = length(get()),
-    case Num of
-        0 -> put(0, Sym);
-        _ -> put(Num + 5, Sym)
-    end.
+%% Strings and symbols are cached in two different hash tables
+%% in the Ruby source. The first (arg->symbols) contains symbols
+%% encountered while marshaling/loading, and reused ones are
+%% represented via a TYPE_SYMLINK; the second (arg->data) contains
+%% other data types, and reused ones are represented via a TYPE_LINK.
+%%
+get_value(Num)  -> get({value,  Num}).
+get_symbol(Num) -> get({symbol, Num}).
 
-get_symbol(Num) -> get(Num).
+put_value(Val)  -> table_put(value,  Val).
+put_symbol(Sym) -> table_put(symbol, Sym).
+
+table_put(Type, Value) ->
+    case table_exists(Type, Value) of
+        true  -> do_nothing;
+        false ->
+            %% Get the count of elements with the given Type
+            %% stored in the process dictionary.
+            %%
+            %% The dictionary contains, e.g:
+            %% [{{value,  0}, "prot"}, {{value,  6}, 3.141457},
+            %%  {{symbol, 0}, "fooX"}, {{symbol, 6}, "barbaz"}]
+            %%
+            Count = lists:foldl(fun(E, Acc) ->
+                case E of
+                    {{Type, _}, _} -> Acc + 1;
+                    _              -> Acc
+                end
+            end, 0, get()),
+
+            %% If there are no elements of type Type, this value
+            %% ID is 0, else it is the count of Type elements plus
+            %% 5. Don't ask me why: that's how the Ruby marshaller
+            %% works! :-).
+            %%
+            Num = case Count of
+                0 -> 0;
+                N -> N + 5
+            end,
+
+            put({Type, Num}, Value)
+    end,
+
+    Value.
+
+table_exists(Type, Value) ->
+    Existing = lists:filter(fun(E) ->
+        case E of
+            {{Type, _}, Value} -> true;
+            _                  -> false
+        end
+    end, get()),
+
+    case length(Existing) of
+        1 -> true;
+        0 -> false
+    end.
 
 %% Tests
 
