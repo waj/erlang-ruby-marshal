@@ -2,11 +2,14 @@ Purpose of this fork
 ====================
 
 * Added support for instance variables
-* Added support for symbolic links
+* Added support for symbolic links (;)
+* Added support for links (@)
 
 With these patches, you can unmarshal safely Rails' session cookies,
 even if they contain stuff in the Flash (the original upstream crashed
 when parsing a session with something in the Flash).
+
+Tested with Ruby 1.9 marshalled data, with encodings attached to strings.
 
 Have fun :-)
 
