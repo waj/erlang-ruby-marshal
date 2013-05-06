@@ -217,6 +217,11 @@ decode_uclass(<<T:8, D/binary>>) ->
 
 %% Objects with instance variables
 
+decode_element_with_ivars(T = ?TYPE_STRING, D) ->
+    {Element, DI} = decode_element(T, D),
+    {_,       D2} = decode_ivars(DI),
+    {Element, D2};
+
 decode_element_with_ivars(T, D) ->
     {Element, DI} = decode_element(T, D),
     {Ivars,   D2} = decode_ivars(DI),
