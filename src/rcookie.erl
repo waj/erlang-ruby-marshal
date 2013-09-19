@@ -21,7 +21,7 @@ verify(Data, Digest) ->
     DataDigest =:= Digest.
 
 generate_digest(Data) ->
-    lists:flatten(list_to_hex(binary_to_list(crypto:sha_mac(?SECRET, Data)))).
+    lists:flatten(list_to_hex(binary_to_list(crypto:hmac(sha, ?SECRET, Data)))).
 
 decode(S) ->
     decode(S, []).
